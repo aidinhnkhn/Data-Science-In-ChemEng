@@ -1,0 +1,10 @@
+numpy==2.4.6
+pandas==3.0.3
+matplotlib==3.10.9
+scikit-learn==1.8.0
+# Installed build was torch==2.5.1+cu121 (CUDA 12.1). CPU-only users can
+# install plain torch==2.5.1. The models are small, so CPU is fine.
+torch==2.5.1
+xgboost==3.2.0
+joblib==1.5.3
+scipy==1.17.1
