@@ -46,7 +46,7 @@ A GPU is optional. The models are small and run fine on CPU. I trained them on C
 
 ## Data
 
-The data ships with the repository, so there is nothing to download.
+The data is in the repository, so there is nothing to download from an external source.
 
 | File | Content |
 |---|---|
@@ -77,7 +77,7 @@ notebook imports `nn_utils.py`, so the working directory must be the repo root.
 Notes:
 
 - The neural-network notebooks set `RANDOM_STATE = 42`, so the splits and
-  training are repeatable.
+  training are repeatable. Changing This value will result in different results for certain.
 - Run the steps in order. Step 7 reuses the Residual MLP configuration as one of
   its ensemble members, and step 8 loads `ensemble_pinn.pt` as its surrogate.
 - The trained checkpoints are already included in `models/`. You can skip
