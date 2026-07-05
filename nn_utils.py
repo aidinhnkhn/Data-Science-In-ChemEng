@@ -610,6 +610,67 @@ class LiquidClosure(nn.Module):
         return z
 
 
+class RecoveryClamp(nn.Module):
+    """Hard physical bounds for ``MeOH_recovery``: 0 <= recovery <= 1, and
+    exactly 0 when the flash produces no liquid.
+
+    ``MeOH_recovery`` is a fraction (methanol leaving in stream 4 over methanol
+    produced in the reactor), so values below 0 or above 1 are unphysical. A
+    regression backbone is unbounded there and does overshoot: Task 4 measured
+    surrogate predictions slightly above 1 near the high-recovery corner and
+    had to cap recovery inside the optimizer. This layer builds the bound into
+    the model instead.
+
+    Behaviour, in linear units:
+
+        gate    = (n4_lin > n4_threshold)          # same regime gate as LiquidClosure
+        rec_new = gate * clamp(rec_lin, 0, 1)      # in [0,1] on liquid rows, 0 otherwise
+
+    Because the recovery column is affine-scaled (not log-scaled), clamping in
+    linear units is also the exact L2 projection onto the [0, 1] box in
+    standardized space, so on liquid rows the layer is non-expansive: the true
+    value always lies inside the bounds, so the projection can only move a
+    prediction closer to it, never further away. It is the identity wherever
+    the prediction is already inside the bounds, which is why it can be
+    attached post-hoc without fine-tuning (unlike ``LiquidClosure``, which
+    reshapes every liquid prediction). Parameter-free, differentiable almost
+    everywhere, scaled-in/scaled-out, so it chains after ``LiquidClosure`` in
+    an ``nn.Sequential``. Self-contained via buffers so a checkpoint reloads
+    without needing the ``TargetTransformer``.
+    """
+
+    def __init__(self, mean: torch.Tensor, scale: torch.Tensor,
+                 rec_idx: int, n4_idx: int, n4_threshold: float = 0.05):
+        super().__init__()
+        self.register_buffer("mean", mean.clone().detach().float())
+        self.register_buffer("scale", scale.clone().detach().float())
+        self.rec_idx = int(rec_idx)
+        self.n4_idx = int(n4_idx)
+        self.n4_threshold = float(n4_threshold)
+
+    @classmethod
+    def from_transformer(cls, Y_transformer: "TargetTransformer",
+                         n4_threshold: float = 0.05) -> "RecoveryClamp":
+        rec_idx = MODEL_OUTPUT_COLS.index("MeOH_recovery")
+        assert rec_idx not in Y_transformer.log_idx, (
+            "RecoveryClamp assumes MeOH_recovery is affine-scaled (not "
+            "log-transformed); the box clamp is not an L2 projection otherwise."
+        )
+        n4_idx = MODEL_OUTPUT_COLS.index("n4_total")
+        mean = torch.as_tensor(Y_transformer.scaler.mean_, dtype=torch.float32)
+        scale = torch.as_tensor(Y_transformer.scaler.scale_, dtype=torch.float32)
+        return cls(mean, scale, rec_idx, n4_idx, n4_threshold)
+
+    def forward(self, z: torch.Tensor) -> torch.Tensor:
+        rec_lin = z[:, self.rec_idx] * self.scale[self.rec_idx] + self.mean[self.rec_idx]
+        n4_lin = z[:, self.n4_idx] * self.scale[self.n4_idx] + self.mean[self.n4_idx]
+        gate = (n4_lin > self.n4_threshold).float()
+        rec_new = gate * rec_lin.clamp(0.0, 1.0)
+        z = z.clone()
+        z[:, self.rec_idx] = (rec_new - self.mean[self.rec_idx]) / self.scale[self.rec_idx]
+        return z
+
+
 class EnsembleModel(nn.Module):
     """Average the (standardized-space) outputs of several member models.
 
