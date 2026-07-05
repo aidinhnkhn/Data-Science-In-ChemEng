@@ -126,6 +126,11 @@ ensemble members, the orders and the measured times per single entry are:
 | Multi-Head MLP (trunk 64, heads 32) | O(s_i w + n w^2 + H w w_h + w_h s_o) | 7,503 | 0.41 ms | 0.33 us |
 | PINN, KKT-hPINN (w=32, n=4) | O(s_i w + 2m n w^2 + w s_o + s_o) | 17,903 | 0.73 ms | 0.78 us |
 | Constrained Deep Ensemble (5 x w=32) | O(M (s_i w + 2m n w^2 + w s_o) + s_o) | 89,515 | 2.42 ms | 3.02 us |
+| Improved PINN (w=128, n=6) | O(s_i w + 2m n w^2 + w s_o + s_o) | 400,527 | 1.42 ms | 3.06 us |
+
+The Improved PINN is the distilled single model: it matches the arithmetic
+cost of the ensemble per batched entry but, being one backbone instead of
+five, it is faster for a single entry.
 
 Timings are on CPU (PyTorch 2.5.1, 14 threads), median over repeated runs.
 Two things are worth knowing when reading the table:
