@@ -25,6 +25,7 @@ This README explains how to reproduce every result from scratch.
 | `XGBoost.ipynb` | Task 2(ii). |
 | `NN_DeepMLP.ipynb`, `NN_ResidualMLP.ipynb`, `NN_MultiHead.ipynb`, `NN_PINN.ipynb` | The four Task 3 architectures. |
 | `NN_Ensemble.ipynb` | The final surrogate (constrained deep ensemble). |
+| `NN_ImprovedPINN.ipynb` | Task 3 follow-up: a single-model PINN distilled from the ensemble. |
 | `Task4_Optimization.ipynb` | Task 4 constrained optimization. |
 | `nn_utils.py` | Shared code for every neural-network notebook: data pipeline, scaling, train/validation split, training loop, metrics, and the physics constraint layers. |
 | `models/` | Pre-trained checkpoints, grouped by task. |
@@ -73,6 +74,7 @@ notebook imports `nn_utils.py`, so the working directory must be the repo root.
 | 6 | `NN_PINN.ipynb` | Task 3 architecture 4 (KKT-hPINN) | `models/task3/pinn.pt` |
 | 7 | `NN_Ensemble.ipynb` | Final surrogate (constrained deep ensemble) | `models/task3/ensemble_pinn.pt`, `models/task3_members/*.pt` |
 | 8 | `Task4_Optimization.ipynb` | Task 4 constrained optimization | `models/task4/optima.json`, `pareto.csv`, `optima_table.csv` |
+| 9 | `NN_ImprovedPINN.ipynb` | Task 3 follow-up: ensemble distillation into a single PINN | `models/task3/improved_pinn.pt` |
 
 Notes:
 
@@ -80,6 +82,9 @@ Notes:
   training are repeatable. Changing This value will result in different results for certain.
 - Run the steps in order. Step 7 reuses the Residual MLP configuration as one of
   its ensemble members, and step 8 loads `ensemble_pinn.pt` as its surrogate.
+- Step 9 also needs `ensemble_pinn.pt` from step 7 (the ensemble is its
+  distillation teacher). Unlike the other notebooks it trains on the GPU when
+  one is available, because its distillation stage uses 150k synthetic rows.
 - The trained checkpoints are already included in `models/`. You can skip
   training and just run the evaluation cells, or delete a checkpoint and re-run
   its notebook to train it again from scratch.
@@ -91,7 +96,8 @@ selection on validation.
 
 | Model | Test R2 |
 |---|---|
-| Constrained Deep Ensemble (final surrogate) | 0.998 |
+| Improved PINN (single model distilled from the ensemble) | 0.9982 |
+| Constrained Deep Ensemble (final surrogate) | 0.9981 |
 | PINN (KKT-hPINN) | 0.996 |
 | Residual MLP | 0.992 |
 | XGBoost | 0.987 |
