@@ -104,3 +104,36 @@ Task 4. It also satisfies the vapor and liquid mole-fraction closure to about
 1e-7. In Task 4 this surrogate maximizes methanol recovery under a heat-duty
 limit and a crude-purity floor, and the optimum is reported at two purity floors
 taken from the literature.
+
+## Computational cost of a single prediction
+
+Every network here is a stack of fully connected layers, so the cost of one
+forward pass is a sum of matrix-vector products. With `s_i = 9` inputs,
+`s_o = 15` modeled outputs, hidden width `w`, depth `n`, residual bottleneck
+expansion `m = 2`, head count `H = 3` with head width `w_h`, and `M = 5`
+ensemble members, the orders and the measured times per single entry are:
+
+| Model | Order of one forward pass | Parameters | Latency, one entry | Per entry in a large batch |
+|---|---|---:|---:|---:|
+| Deep MLP (w=128, n=4) | O(s_i w + n w^2 + w s_o) | 53,775 | 0.40 ms | 0.55 us |
+| Residual MLP (w=64, n=4) | O(s_i w + 2m n w^2 + w s_o) | 68,559 | 0.51 ms | 0.74 us |
+| Multi-Head MLP (trunk 64, heads 32) | O(s_i w + n w^2 + H w w_h + w_h s_o) | 7,503 | 0.41 ms | 0.33 us |
+| PINN, KKT-hPINN (w=32, n=4) | O(s_i w + 2m n w^2 + w s_o + s_o) | 17,903 | 0.73 ms | 0.78 us |
+| Constrained Deep Ensemble (5 x w=32) | O(M (s_i w + 2m n w^2 + w s_o) + s_o) | 89,515 | 2.42 ms | 3.02 us |
+
+Timings are on CPU (PyTorch 2.5.1, 14 threads), median over repeated runs.
+Two things are worth knowing when reading the table:
+
+- At batch size 1 the time is dominated by the fixed per-layer framework
+  overhead, not by the arithmetic. That is why the 7.5k-parameter Multi-Head
+  model is not faster than the 54k-parameter Deep MLP for one entry, and why
+  the ensemble costs five times the single PINN: it runs five backbones one
+  after another. The last column, where the cost is averaged over a batch of
+  4096 entries, reflects the real arithmetic and follows the orders above.
+- The hard constraint layers (vapor projection, liquid closure) are O(s_o)
+  with no trainable weights, so enforcing the physics exactly adds no
+  meaningful cost at prediction time.
+
+In every case the dominant term is n w^2 (times M for the ensemble), and one
+prediction stays under about 2.5 ms even in the worst case, so the surrogate
+is orders of magnitude cheaper than the process simulator it replaces.
